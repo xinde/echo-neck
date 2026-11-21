@@ -1,10 +1,11 @@
 const prefix = 'echo-neck:' + new URL(self.registration.scope).pathname + ':';
-const cacheName = prefix + '20261121.5';
+const cacheName = prefix + '20261121.6';
 const assets = [
   './',
   './index.html',
   './style.css',
   './main.js',
+  './pad.js',
   './scope.js',
   './engine.js',
   './camera.js',

@@ -93,14 +93,17 @@
               <div><small>得分</small><b id="score">0000</b></div>
               <div><small>命中</small><b id="hits">0 / 12</b></div>
             </div>
-            <div id="pad" hidden aria-label="试玩方向键">
-              <button data-dir="left" aria-label="向左">←</button
-              ><button data-dir="up" aria-label="向上">↑</button
-              ><button data-dir="down" aria-label="向下">↓</button
-              ><button data-dir="right" aria-label="向右">→</button>
+            <div id="pad" hidden role="group" aria-label="圆形方向盘" aria-describedby="detail">
+              <button type="button" data-dir="up" aria-label="向上"><span>↑</span></button>
+              <button type="button" data-dir="left" aria-label="向左"><span>←</span></button>
+              <button type="button" data-dir="right" aria-label="向右"><span>→</span></button>
+              <button type="button" data-dir="down" aria-label="向下"><span>↓</span></button>
+              <span class="pad-hub" aria-hidden="true"><i></i></span>
             </div>
-            <button id="action" class="primary">暂停</button
-            ><button id="exit" class="secondary">返回设置</button>
+            <div class="play-actions">
+              <button id="action" class="primary">暂停</button>
+              <button id="exit" class="secondary">返回设置</button>
+            </div>
           </div>
           <p id="error" class="error" role="alert" hidden></p>
         </section>
@@ -114,7 +117,7 @@
       </section>
       <footer>
         <span class="lock" aria-hidden="true">▣</span> 摄像头画面仅在本机处理
-        <span class="footer-end">ECHO NECK <i>/</i> v1.1</span>
+        <span class="footer-end">ECHO NECK <i>/</i> v1.2</span>
       </footer>
     </main>
     <dialog id="guide">
@@ -139,6 +142,7 @@
             <p>两声清亮音表示命中，低音表示错过。轻移就够了。睁眼片刻可暂停，如感到不适请停止。</p>
           </li>
         </ol>
+        <p class="manual-tip">免摄像头试玩时，在重拍点圆盘的对应扇区，也可以从圆心轻划或按键盘方向键。</p>
         <button class="primary">明白了</button>
       </form>
     </dialog>

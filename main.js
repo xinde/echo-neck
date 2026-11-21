@@ -2,6 +2,7 @@ import { ARROW, LABEL, DIRECTIONS, Round, Motion, Calibration, chart, readFace }
 import { Sound, motifLabels } from './audio.js';
 import { Scope } from './scope.js';
 import { loadTracker } from './camera.js';
+import { bindDirectionPad } from './pad.js';
 
 const $ = (id) => document.getElementById(id);
 const sound = new Sound(),
@@ -59,6 +60,10 @@ function message(big = '', small = '') {
 function view(state, title = '', detail = '') {
   mode = state;
   const home = state === 'home';
+  const manual = input === 'demo' && !home;
+  document.body.classList.toggle('manual-session', manual);
+  document.body.classList.toggle('manual-playing', manual && state === 'play');
+  resetPad();
   $('setup').hidden = !home;
   $('active').hidden = home;
   $('error').hidden = true;
@@ -158,7 +163,7 @@ function play() {
     input === 'camera' ? '闭眼跟拍' : '按键试玩',
     input === 'camera'
       ? '听出方向，在第三拍的低鼓声轻移一次，再回正。持续睁眼可以暂停。'
-      : '听方向，在低鼓声按方向键或下方箭头。',
+      : '低鼓响时点对应扇区，或从圆心向该方向轻划。',
   );
   counters();
 }
@@ -445,7 +450,8 @@ $('action').onclick = () => {
   else if (mode === 'done') start(input);
 };
 $('exit').onclick = () => home();
-for (const b of $('pad').children) b.onclick = () => demoStrike(b.dataset.dir);
+const resetPad = bindDirectionPad($('pad'), demoStrike);
+window.addEventListener('resize', resetPad);
 // Hold/repeat and key-up cannot score additional notes.
 document.addEventListener('keydown', (e) => {
   if ($('guide').open || mode !== 'play') return;

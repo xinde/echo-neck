@@ -356,6 +356,33 @@ dialog h2 {
   padding: 0;
   border: 0;
 }
+.cue-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 13px;
+}
+.cue-modes {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: #eae7e0;
+  border-radius: 7px;
+}
+.cue-modes button {
+  padding: 6px 10px;
+  font-size: 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+}
+.cue-modes button[aria-pressed='true'] {
+  background: #e5daf9;
+  border-color: #9a87ad;
+  font-weight: 700;
+}
 .controls legend {
   font-size: 13px;
   font-weight: 700;
@@ -547,8 +574,8 @@ dialog h2 {
   white-space: nowrap;
 }
 .sound-label small {
-  font: 9px var(--mono);
-  letter-spacing: 0.1em;
+  font: 11px var(--sans);
+  white-space: nowrap;
   color: var(--muted);
   margin-top: 3px;
 }

@@ -1,5 +1,5 @@
 import { ARROW, LABEL, DIRECTIONS, Round, Motion, Calibration, chart, readFace } from './engine.js';
-import { Sound } from './audio.js';
+import { Sound, motifLabels } from './audio.js';
 import { Scope } from './scope.js';
 import { loadTracker } from './camera.js';
 
@@ -137,20 +137,18 @@ function home(error = '') {
     $('error').hidden = false;
   }
 }
-function pause(reason, speak = true) {
+function pause(reason, audible = true) {
   if (!['play', 'eyes', 'calibrate', 'loading'].includes(mode)) return;
   generation++;
   sound.clear();
   release();
   visualResult = null;
   view('paused', '已暂停', reason);
-  if (speak && sound.ctx?.state === 'running' && sound.buffers.has('paused')) sound.say('paused');
+  if (audible && sound.ctx?.state === 'running') sound.signal('paused');
 }
 function play() {
   sound.clear();
-  const voiceEnd = sound.say('ready');
-  const start = voiceEnd + 0.5;
-  round.schedule(start);
+  round.schedule(sound.countIn(round.beat));
   sound.schedule(round);
   motion.reset();
   visualResult = null;
@@ -159,7 +157,7 @@ function play() {
     'play',
     input === 'camera' ? '闭眼跟拍' : '按键试玩',
     input === 'camera'
-      ? '听口令，在低鼓声轻移一次，再回正。持续睁眼可以暂停。'
+      ? '听出方向，在第三拍的低鼓声轻移一次，再回正。持续睁眼可以暂停。'
       : '听方向，在低鼓声按方向键或下方箭头。',
   );
   counters();
@@ -176,7 +174,7 @@ function complete() {
   // Let the last hit or miss sound resolve before the closing announcement.
   sound.clear();
   sound.feedback(['good', 'perfect'].includes(round.results.at(-1).grade));
-  sound.say('end', sound.ctx.currentTime + 0.35);
+  sound.signal('end', sound.ctx.currentTime + 0.35);
   release();
   view(
     'done',
@@ -211,7 +209,7 @@ async function start(kind, resume = false) {
   view(
     'loading',
     kind === 'camera' ? '连接摄像头' : '准备声音',
-    kind === 'camera' ? '请允许使用前置摄像头，并把设备放稳。' : '正在加载中文方向口令。',
+    kind === 'camera' ? '请允许使用前置摄像头，并把设备放稳。' : '正在准备节拍。',
   );
   try {
     const audio = sound.unlock();
@@ -295,7 +293,7 @@ function cameraSample(now, perf) {
       sizeKey = frameSize;
       view('eyes', '轻轻闭眼', '保持头部在刚才的中心，轻轻闭上双眼。听完提示会自动开始。');
       message('校准完成', '轻轻闭眼，等待节拍');
-      readyAfter = sound.say('close') + 0.12;
+      readyAfter = sound.signal('close') + 0.12;
     } else
       message(!f ? '请正对摄像头' : f.closed ? '先睁眼校准' : '保持头部静止', '将脸放在画面中央');
     return;
@@ -361,7 +359,7 @@ function tick() {
       }
       if (visualResult?.until > now) message(grades[visualResult.grade], '回到中间');
       else if (dir) message(ARROW[dir] + ' ' + LABEL[dir], step === 2 ? '重拍' : '听鼓点');
-      else message(round.results.length ? '回到中间' : '准备', '等待下一条方向口令');
+      else message(round.results.length ? '回到中间' : '准备', '等待下一组节拍');
     }
   }
   display = { dir, phase, step };
@@ -378,6 +376,24 @@ function draw(perf) {
 function demoStrike(dir, perf = performance.now()) {
   if (mode === 'play' && input === 'demo') feedback(round.strike(dir, sound.audioTime(perf)));
 }
+const cueButtons = document.querySelectorAll('[data-cue]');
+function selectCue(value) {
+  sound.mode = value === 'voice' ? 'voice' : 'music';
+  cueButtons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cue === sound.mode)));
+}
+const cueKey = 'echo-neck:cue-mode';
+try {
+  selectCue(localStorage.getItem(cueKey));
+} catch {}
+for (const b of cueButtons)
+  b.onclick = () => {
+    clearSample();
+    sound.clear();
+    selectCue(b.dataset.cue);
+    try {
+      localStorage.setItem(cueKey, sound.mode);
+    } catch {}
+  };
 for (const b of document.querySelectorAll('[data-bpm]'))
   b.onclick = () => {
     bpm = Number(b.dataset.bpm);
@@ -387,25 +403,22 @@ for (const b of document.querySelectorAll('[data-bpm]'))
     $('bpm-label').textContent = bpm + ' BPM';
     $('length').textContent = '约 ' + Math.round((48 * 60) / bpm) + ' 秒';
   };
-DIRECTIONS.forEach((dir, i) => {
+const phraseGlyphs = {
+  up: 'M3 19h10 M20 12h10 M37 5h16',
+  down: 'M3 5h10 M20 12h10 M37 19h16',
+  left: 'M4 13h3l2-8 3 13 2-5h3 M29 13h3l2-8 3 13 2-5h3',
+  right: 'M2 13h4q3-12 6 0t6 0t6 0t6 0t6 0t6 0q3-8 6 0h6',
+};
+DIRECTIONS.forEach((dir) => {
   const b = document.createElement('button');
   b.className = 'sound-card';
-  b.setAttribute('aria-label', '试听' + LABEL[dir]);
-  const bars = Array.from({ length: 19 }, (_, j) => {
-    const s =
-      2 + Math.abs(Math.sin(j * (i + 2) * 0.76 + 0.8) * Math.sin(((j + 1) * Math.PI) / 21)) * 16;
-    return '<path d="M' + (j * 3 + 1) + ' ' + (12 - s / 2) + 'v' + s + '"/>';
-  }).join('');
-  b.innerHTML =
-    '<span class="sound-ico">' +
-    ARROW[dir] +
-    '</span><span class="sound-label"><b>' +
-    LABEL[dir] +
-    '</b><small>' +
-    dir.toUpperCase() +
-    '</small></span><svg class="wave" viewBox="0 0 58 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">' +
-    bars +
-    '</svg>';
+  b.setAttribute('aria-label', '试听' + LABEL[dir] + '，' + motifLabels[dir]);
+  b.innerHTML = `<span class="sound-ico">${ARROW[dir]}</span>
+    <span class="sound-label"><b>${LABEL[dir]}</b><small>${motifLabels[dir]}</small></span>
+    <svg class="wave" viewBox="0 0 58 24" fill="none" stroke="currentColor"
+      stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="${phraseGlyphs[dir]}"/>
+    </svg>`;
   b.onclick = async () => {
     clearSample();
     const id = sampleToken;
@@ -414,9 +427,9 @@ DIRECTIONS.forEach((dir, i) => {
     try {
       await sound.unlock();
       if (id !== sampleToken || mode !== 'home') return;
-      sound.direction(dir, sound.ctx.currentTime + 0.035);
+      sound.direction(dir, sound.ctx.currentTime + 0.035, 60 / bpm);
     } catch {
-      if (id === sampleToken) home('未能播放口令，请检查网络后重试。');
+      if (id === sampleToken) home('未能播放声音，请重试。');
     }
     setTimeout(() => {
       if (id === sampleToken) b.classList.remove('playing');

@@ -64,6 +64,13 @@
           </div>
           <h2 id="panel-title">本轮设置</h2>
           <div id="setup">
+            <div class="cue-row">
+              <b id="cue-label">辨向方式</b>
+              <div class="cue-modes" role="group" aria-labelledby="cue-label">
+                <button data-cue="music" aria-pressed="true">纯音乐</button>
+                <button data-cue="voice" aria-pressed="false">中文口令</button>
+              </div>
+            </div>
             <fieldset>
               <legend>节拍速度 <small>BPM</small></legend>
               <div class="speeds">
@@ -101,13 +108,13 @@
       <section class="library" aria-labelledby="library-title">
         <div class="library-heading">
           <h2 id="library-title">方向试听</h2>
-          <span>点击试听口令与音色</span>
+          <span>点一下，记住每个方向的乐句</span>
         </div>
         <div class="sound-grid" id="samplers"></div>
       </section>
       <footer>
         <span class="lock" aria-hidden="true">▣</span> 摄像头画面仅在本机处理
-        <span class="footer-end">ECHO NECK <i>/</i> v1.0</span>
+        <span class="footer-end">ECHO NECK <i>/</i> v1.1</span>
       </footer>
     </main>
     <dialog id="guide">
@@ -119,12 +126,12 @@
         <ol>
           <li>
             <b>坐稳，校准中心</b>
-            <p>固定设备，正对前置摄像头。先睁眼看向中间，听到提示后轻轻闭眼。</p>
+            <p>固定设备，睁眼正对摄像头。画面显示「校准完成」时轻轻闭眼。纯音乐模式会用两声数拍带你进入第一组。</p>
           </li>
           <li>
             <b>先听方向，再等重拍</b>
             <p>
-              第一拍报方向，第二拍是轻响，第三拍的低鼓声是目标。让头部在鼓点附近轻轻移向自己的上、下、左或右。
+              第一拍用乐句报方向。三音升高向上，三音降低向下，木块敲两下向左，簧音拉长向右。听过第二拍的轻响，在第三拍的低鼓声轻移头部。想跟着人声学，可以在设置里选「中文口令」。
             </p>
           </li>
           <li>

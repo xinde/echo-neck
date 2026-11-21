@@ -1,7 +1,18 @@
 const clips = ['up', 'down', 'left', 'right', 'ready', 'close', 'paused', 'end'];
-const notes = { up: 523.25, down: 261.63, left: 329.63, right: 392 };
+export const motifLabels = {
+  up: '铃音上行',
+  down: '琴音下行',
+  left: '木块两短',
+  right: '簧音一长',
+};
+const signals = {
+  close: { pitches: [392, 587.33], length: 0.8 },
+  paused: { pitches: [220, 246.94], length: 0.45 },
+  end: { pitches: [261.63, 329.63, 392, 523.25], length: 1.3 },
+};
 export class Sound {
   constructor() {
+    this.mode = 'music';
     this.sources = new Set();
     this.buffers = new Map();
   }
@@ -15,6 +26,8 @@ export class Sound {
       this.master.connect(this.ctx.destination);
     }
     await this.ctx.resume();
+    if (this.ctx.state !== 'running') throw Error('audio suspended');
+    if (this.mode === 'music') return;
     this.loading ??= Promise.all(
       clips.map(async (name) => {
         const res = await fetch(new URL('./assets/voice/' + name + '.wav', import.meta.url));
@@ -59,7 +72,7 @@ export class Sound {
     src.start(at);
     return at + src.buffer.duration;
   }
-  tone(hz, at, length, volume, { end = hz, type = 'sine', pan = 0 } = {}) {
+  tone(hz, at, length, volume, { end = hz, type = 'sine', pan = 0, hold = 0 } = {}) {
     const osc = this.ctx.createOscillator(),
       gain = this.ctx.createGain();
     osc.type = type;
@@ -67,6 +80,7 @@ export class Sound {
     osc.frequency.exponentialRampToValueAtTime(end, at + length);
     gain.gain.setValueAtTime(0.0001, at);
     gain.gain.exponentialRampToValueAtTime(volume, at + 0.009);
+    if (hold) gain.gain.setValueAtTime(volume, at + hold);
     gain.gain.exponentialRampToValueAtTime(0.0001, at + length);
     osc.connect(gain);
     const panner = pan && this.ctx.createStereoPanner?.();
@@ -81,14 +95,42 @@ export class Sound {
     osc.start(at);
     osc.stop(at + length + 0.005);
   }
-  direction(dir, at) {
-    this.say(dir, at);
-    const f = notes[dir],
-      pan = dir === 'left' ? -0.7 : dir === 'right' ? 0.7 : 0;
-    this.tone(f, at + 0.05, 0.28, 0.1, { pan });
-    this.tone(f * (dir === 'down' ? 0.75 : dir === 'up' ? 1.5 : 1.25), at + 0.23, 0.31, 0.08, {
-      pan,
-    });
+  signal(name, at = this.ctx.currentTime + 0.025) {
+    if (this.mode === 'voice') return this.buffers.has(name) ? this.say(name, at) : at;
+    const { pitches, length } = signals[name];
+    for (const hz of pitches)
+      this.tone(hz, at, length, 0.24 / pitches.length, { hold: length * 0.22 });
+    return at + length;
+  }
+  countIn(beat) {
+    if (this.mode === 'voice') return this.say('ready') + 0.5;
+    const at = this.ctx.currentTime + 0.08;
+    for (const time of [at, at + beat]) this.tone(740, time, 0.08, 0.14, { type: 'triangle' });
+    return at + 2 * beat;
+  }
+  direction(dir, at, beat) {
+    if (this.mode === 'voice') this.say(dir, at);
+    const level = this.mode === 'voice' ? 0.42 : 1;
+    // Make every phrase identifiable in mono. Panning is only a secondary cue.
+    if (dir === 'left') {
+      for (const time of [at, at + 0.46 * beat]) {
+        this.tone(740, time, 0.1, 0.36 * level, { end: 510, type: 'triangle', pan: -0.45 });
+        this.tone(1170, time, 0.055, 0.14 * level, { end: 910, pan: -0.45 });
+      }
+    } else if (dir === 'right') {
+      const length = 0.84 * beat,
+        sustain = 0.63 * beat;
+      this.tone(349.23, at, length, 0.19 * level, { type: 'triangle', pan: 0.45, hold: sustain });
+      this.tone(698.46, at, length, 0.07 * level, { type: 'sawtooth', pan: 0.45, hold: sustain });
+    } else {
+      const rising = dir === 'up';
+      const pitches = rising ? [523.25, 659.25, 783.99] : [392, 329.63, 261.63];
+      pitches.forEach((hz, i) => {
+        const time = at + i * 0.25 * beat;
+        this.tone(hz, time, 0.36 * beat, 0.34 * level, { type: rising ? 'sine' : 'triangle' });
+        if (rising) this.tone(hz * 2.4, time, 0.08, 0.07 * level);
+      });
+    }
   }
   feedback(hit) {
     const t = this.ctx.currentTime + 0.018;
@@ -99,7 +141,7 @@ export class Sound {
   }
   schedule(round) {
     for (const n of round.timeline) {
-      this.direction(n.dir, n.cue);
+      this.direction(n.dir, n.cue, round.beat);
       this.tone(620, n.cue + round.beat, 0.085, 0.16, { type: 'triangle' });
       this.tone(174, n.at, 0.25, 0.67, { end: 53 });
       this.tone(920, n.at, 0.065, 0.16);

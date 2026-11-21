@@ -3,7 +3,7 @@ export const motifLabels = {
   up: '铃音上行',
   down: '琴音下行',
   left: '木块两短',
-  right: '簧音一长',
+  right: '陶笛长音',
 };
 const signals = {
   close: { pitches: [392, 587.33], length: 0.8 },
@@ -72,14 +72,14 @@ export class Sound {
     src.start(at);
     return at + src.buffer.duration;
   }
-  tone(hz, at, length, volume, { end = hz, type = 'sine', pan = 0, hold = 0 } = {}) {
+  tone(hz, at, length, volume, { end = hz, type = 'sine', pan = 0, hold = 0, attack = 0.009 } = {}) {
     const osc = this.ctx.createOscillator(),
       gain = this.ctx.createGain();
     osc.type = type;
     osc.frequency.setValueAtTime(hz, at);
     osc.frequency.exponentialRampToValueAtTime(end, at + length);
     gain.gain.setValueAtTime(0.0001, at);
-    gain.gain.exponentialRampToValueAtTime(volume, at + 0.009);
+    gain.gain.exponentialRampToValueAtTime(volume, at + attack);
     if (hold) gain.gain.setValueAtTime(volume, at + hold);
     gain.gain.exponentialRampToValueAtTime(0.0001, at + length);
     osc.connect(gain);
@@ -118,10 +118,11 @@ export class Sound {
         this.tone(1170, time, 0.055, 0.14 * level, { end: 910, pan: -0.45 });
       }
     } else if (dir === 'right') {
-      const length = 0.84 * beat,
-        sustain = 0.63 * beat;
-      this.tone(349.23, at, length, 0.19 * level, { type: 'triangle', pan: 0.45, hold: sustain });
-      this.tone(698.46, at, length, 0.07 * level, { type: 'sawtooth', pan: 0.45, hold: sustain });
+      // An ocarina-like D4, with a soft onset and just a trace of the octave.
+      const length = 0.84 * beat;
+      const breath = { pan: 0.3, hold: 0.6 * beat, attack: 0.065 };
+      this.tone(293.66, at, length, 0.138 * level, breath);
+      this.tone(587.32, at, length, 0.006 * level, breath);
     } else {
       const rising = dir === 'up';
       const pitches = rising ? [523.25, 659.25, 783.99] : [392, 329.63, 261.63];

@@ -90,7 +90,8 @@ function view(state, title = '', detail = '') {
     state === 'done' ? '再来一轮' : state === 'paused' ? '继续本轮' : '暂停';
   $('exit').textContent = ['loading', 'calibrate', 'eyes'].includes(state) ? '取消' : '返回设置';
   $('pad').hidden = state !== 'play' || input !== 'demo';
-  video.hidden = state !== 'calibrate';
+  video.hidden = !stream;
+  video.classList.toggle('preview', state === 'calibrate');
   document.querySelectorAll('.sound-card').forEach((b) => (b.disabled = !home));
   message();
 }
@@ -270,21 +271,23 @@ async function start(kind, resume = false) {
   }
 }
 function cameraSample(now, perf) {
-  if (video.readyState < 2 || video.currentTime === lastVideo) return false;
-  lastVideo = video.currentTime;
+  if (video.readyState < 2) return;
+  const frame = video.getVideoPlaybackQuality?.().totalVideoFrames || video.currentTime;
+  if (frame === lastVideo) return;
+  lastVideo = frame;
   const previous = lastFrame;
   lastFrame = perf / 1000;
   const frameSize = video.videoWidth + 'x' + video.videoHeight;
   if (origin && sizeKey !== frameSize) {
     pause('摄像头画面尺寸已改变，请重新定位中心。');
-    return false;
+    return;
   }
   let f;
   try {
     f = readFace(tracker.detectForVideo(video, perf), video.videoWidth, video.videoHeight);
   } catch {
     pause('识别已中断，点击继续重新校准。');
-    return false;
+    return;
   }
   if (mode === 'calibrate') {
     origin = calibration.sample(f && !f.closed ? f : null, perf / 1000);
@@ -295,7 +298,7 @@ function cameraSample(now, perf) {
       readyAfter = sound.say('close') + 0.12;
     } else
       message(!f ? '请正对摄像头' : f.closed ? '先睁眼校准' : '保持头部静止', '将脸放在画面中央');
-    return false;
+    return;
   }
   if (previous !== null && perf / 1000 - previous > 0.2) {
     closedSince = null;
@@ -310,7 +313,7 @@ function cameraSample(now, perf) {
     invalidSince ??= now;
     if (mode === 'play' && now - invalidSince > 0.65)
       pause(f ? '已检测到睁眼。点击继续会重新校准。' : '暂时看不到脸。请回到镜头前再继续。');
-    return false;
+    return;
   }
   invalidSince = null;
   closedSince ??= now;
@@ -323,29 +326,32 @@ function cameraSample(now, perf) {
     if (holdSince !== null && now - holdSince > 0.35 && now >= readyAfter) play();
     else if (now >= readyAfter && holdSince === null)
       message('请回到校准中心', '保持闭眼，回正后自动开始');
-    return false;
+    return;
   }
-  if (now - closedSince < 0.16) return false;
+  if (now - closedSince < 0.16) return;
   const event = motion.sample(x, y, now);
   if (event) feedback(round.strike(event.dir, event.time));
-  return true;
 }
-function tick(perf) {
-  requestAnimationFrame(tick);
+let display = { dir: null, phase: 0, step: -1 };
+function tick() {
+  if (!['calibrate', 'eyes', 'play'].includes(mode) || document.hidden) return;
+  const perf = performance.now();
   if (mode === 'play' && sound.ctx.state !== 'running')
     pause('声音播放已中断，点击继续可重新听拍。', false);
   const now = sound.ctx ? sound.audioTime(perf) : 0;
-  let valid = false;
   if (input === 'camera' && ['calibrate', 'eyes', 'play'].includes(mode)) {
     if (mode === 'play' && lastFrame !== null && perf / 1000 - lastFrame > 0.85)
       pause('摄像头帧已中断。请重新校准后继续。');
-    else valid = cameraSample(now, perf);
+    else cameraSample(now, perf);
   }
   let dir = null,
     phase = 0,
     step = -1;
   if (mode === 'play') {
-    if (input === 'demo' || valid) feedback(round.expire(now));
+    // A briefly reopened eye cannot freeze the chart forever. A sustained
+    // tracking loss pauses with the pending note intact.
+    const fresh = lastFrame !== null && perf / 1000 - lastFrame <= 0.2;
+    if (input === 'demo' || (fresh && invalidSince === null)) feedback(round.expire(now));
     if (mode === 'play') {
       const n = round.note;
       if (now >= n.cue) {
@@ -358,7 +364,12 @@ function tick(perf) {
       else message(round.results.length ? '回到中间' : '准备', '等待下一条方向口令');
     }
   }
+  display = { dir, phase, step };
+}
+function draw(perf) {
+  requestAnimationFrame(draw);
   if (perf - lastDraw >= 33) {
+    const { dir, phase, step } = mode === 'play' ? display : { dir: null, phase: 0, step: -1 };
     scope.draw({ dir, phase, point, mode }, perf / 1000);
     lastDraw = perf;
     [...$('steps').children].forEach((el, i) => el.classList.toggle('on', i === step));
@@ -451,5 +462,7 @@ window.addEventListener('pagehide', () => {
   release();
   sound.clear();
 });
-requestAnimationFrame(tick);
+// Keep camera samples and note deadlines independent of compositor throttling.
+setInterval(tick, 25);
+requestAnimationFrame(draw);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});

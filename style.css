@@ -805,3 +805,11 @@ dialog li p {
     animation: none !important;
   }
 }
+
+#video:not(.preview) {
+  width: 2px;
+  height: 2px;
+  opacity: 0.01;
+  pointer-events: none;
+  border: 0;
+}

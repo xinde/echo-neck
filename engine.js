@@ -51,8 +51,14 @@ export class Round {
     if (dir !== n.dir) return this.finish('wrong', delta);
     return this.finish(Math.abs(delta) <= PERFECT + 1e-8 ? 'perfect' : 'good', delta);
   }
-  expire(now) {
-    if (this.note && now > this.note.at + WINDOW + FRAME_GRACE) return this.finish('miss');
+  expire(now, inputPending = false) {
+    const note = this.note;
+    if (!note || now <= note.at + WINDOW + FRAME_GRACE) return null;
+    // A throttled compositor may still be holding an on-time touch for delivery.
+    // Retire the old target no later than the next cue, even if painting stops.
+    if (!inputPending || now >= note.cue + 4 * this.beat) {
+      return this.finish('miss');
+    }
     return null;
   }
   get score() {

@@ -7,6 +7,20 @@ function round() {
   r.schedule(10);
   return r;
 }
+test('a queued touch uses its original time even if the last frame predates the hit', () => {
+  const r = round();
+  assert.equal(r.expire(12.93, true), null);
+  assert.equal(r.strike('right', 12.04).grade, 'perfect');
+  assert.equal(r.results.length, 1);
+});
+test('waiting for queued touches does not widen the timing window or overrun the next cue', () => {
+  const late = round();
+  assert.equal(late.expire(12.93, true), null);
+  assert.equal(late.strike('right', 12.35).grade, 'late');
+  const r = round();
+  assert.equal(r.expire(14, true).grade, 'miss');
+  assert.equal(r.note.dir, 'up');
+});
 function rest(m, t) {
   m.sample(0, 0, t);
   m.sample(0.003, -0.002, t + 0.06);

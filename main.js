@@ -201,6 +201,8 @@ function feedback(result) {
     complete();
     return;
   }
+  // When a delayed miss meets the next cue, let the new direction be heard.
+  if (input === 'demo' && result.grade === 'miss' && sound.audioTime() >= round.note.cue) return;
   sound.feedback(result.grade === 'perfect' || result.grade === 'good');
   visualResult = { ...result, until: sound.audioTime() + 0.7 };
 }
@@ -336,6 +338,7 @@ function cameraSample(now, perf) {
   if (event) feedback(round.strike(event.dir, event.time));
 }
 let display = { dir: null, phase: 0, step: -1 };
+let delayedTouchTarget = null;
 function tick() {
   if (!['calibrate', 'eyes', 'play'].includes(mode) || document.hidden) return;
   const perf = performance.now();
@@ -354,7 +357,12 @@ function tick() {
     // A briefly reopened eye cannot freeze the chart forever. A sustained
     // tracking loss pauses with the pending note intact.
     const fresh = lastFrame !== null && perf / 1000 - lastFrame <= 0.2;
-    if (input === 'demo' || (fresh && invalidSince === null)) feedback(round.expire(now));
+    if (input === 'demo') {
+      // Touch can arrive after the first repaint following a stall. Keep that
+      // target available for timestamped input until its four beats end.
+      if (perf - lastDraw > 180) delayedTouchTarget = round.note;
+      feedback(round.expire(now, delayedTouchTarget === round.note));
+    } else if (fresh && invalidSince === null) feedback(round.expire(now));
     if (mode === 'play') {
       const n = round.note;
       if (now >= n.cue) {
@@ -379,7 +387,10 @@ function draw(perf) {
   }
 }
 function demoStrike(dir, perf = performance.now()) {
-  if (mode === 'play' && input === 'demo') feedback(round.strike(dir, sound.audioTime(perf)));
+  if (mode !== 'play' || input !== 'demo') return;
+  const time = sound.audioTime(perf);
+  if (time >= round.note.cue + 4 * round.beat) feedback(round.expire(time));
+  if (mode === 'play') feedback(round.strike(dir, time));
 }
 const cueButtons = document.querySelectorAll('[data-cue]');
 function selectCue(value) {
